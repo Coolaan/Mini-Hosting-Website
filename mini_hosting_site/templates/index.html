@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mini Hosting Website</title>
+</head>
+<body>
+    <h1>Upload Your Site</h1>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        Username: <input type="text" name="username" required><br><br>
+        Upload Zip File: <input type="file" name="file" accept=".zip" required><br><br>
+        <input type="submit" value="Upload and Host">
+    </form>
+</body>
+</html>
