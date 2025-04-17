@@ -24,10 +24,27 @@ def upload_file():
         os.makedirs(username_folder, exist_ok=True)
         zip_path = os.path.join(username_folder, secure_filename(file.filename))
         file.save(zip_path)
+
+        # Extract all files while flattening folder structure
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(username_folder)
+            # check if index.html exists anywhere
+            index_found = False
+            for member in zip_ref.namelist():
+                if os.path.basename(member).lower() == "index.html":
+                    index_found = True
+                # Extract file to user folder
+                source = zip_ref.open(member)
+                target_path = os.path.join(username_folder, os.path.basename(member))
+                with open(target_path, "wb") as target:
+                    target.write(source.read())
+
         os.remove(zip_path)
+
+        if not index_found:
+            return "Error: index.html not found in zip!"
+
         return redirect(url_for('user_site', username=username))
+
 
 @app.route('/<username>/')
 def user_site(username):
@@ -42,7 +59,6 @@ def serve_user_files(username, filename):
     user_path = os.path.join(app.config['UPLOAD_FOLDER'], username)
     return send_from_directory(user_path, filename)
 
-import os
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000)) 
     app.run(host='0.0.0.0', port=port, debug=True)
