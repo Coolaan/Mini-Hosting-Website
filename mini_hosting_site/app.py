@@ -1,21 +1,19 @@
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 import os
-import zipfile
 from werkzeug.utils import secure_filename
+import zipfile
 from pymongo import MongoClient
 import certifi
-import datetime
 
-# Setup Flask app
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# MongoDB Atlas connection
-MONGO_URI = MONGO_URI = os.environ.get("MONGO_URI")
-client = MongoClient(MONGO_URI, tls=True, tlsCAFile=certifi.where())
-db = client["user_files"]
-collection = db["uploads"]
+# MongoDB setup
+mongo_uri = os.environ.get("MONGO_URI")
+client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
+db = client['mini_hosting']
+collection = db['uploads']
 
 @app.route('/')
 def index():
@@ -35,9 +33,8 @@ def upload_file():
         zip_path = os.path.join(username_folder, secure_filename(file.filename))
         file.save(zip_path)
 
-        # Extract files from zip and flatten the structure
+        index_found = False
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            index_found = False
             for member in zip_ref.namelist():
                 if member.endswith('/'):
                     continue
@@ -45,24 +42,20 @@ def upload_file():
                     index_found = True
                 source = zip_ref.open(member)
                 target_path = os.path.join(username_folder, os.path.basename(member))
-                if not os.path.exists(target_path):
-                    with open(target_path, "wb") as target:
-                        target.write(source.read())
+                with open(target_path, "wb") as target:
+                    target.write(source.read())
 
         os.remove(zip_path)
 
         if not index_found:
             return "Error: index.html not found in zip!"
 
-        # Store metadata in MongoDB
-        upload_info = {
+        # Save to MongoDB
+        collection.insert_one({
             "username": username,
             "filename": file.filename,
-            "uploaded_at": datetime.datetime.utcnow(),
-            "filetype": "zip",
-            "contains_index": index_found
-        }
-        collection.insert_one(upload_info)
+            "filesize": os.path.getsize(target_path)
+        })
 
         return redirect(url_for('user_site', username=username))
 
