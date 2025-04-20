@@ -2,8 +2,6 @@ from flask import Flask, render_template, request, redirect, url_for, send_from_
 import os
 from werkzeug.utils import secure_filename
 import zipfile
-
-# MongoDB related imports
 import pymongo
 import certifi
 
@@ -25,6 +23,7 @@ def upload_file():
     global USE_MONGO
     global MONGO_URI
     
+    # Get the username and the MongoDB usage flag from the form
     username = request.form['username']
     use_mongo = request.form.get('use_mongo')  # Check if MongoDB is selected
     
@@ -35,6 +34,7 @@ def upload_file():
     else:
         USE_MONGO = False
     
+    # Ensure a file is uploaded
     if 'file' not in request.files:
         return 'No file part'
     
@@ -42,6 +42,7 @@ def upload_file():
     if file.filename == '':
         return 'No selected file'
     
+    # Process and save the uploaded file
     if file:
         # Create a folder for the user (username)
         username_folder = os.path.join(app.config['UPLOAD_FOLDER'], username)
@@ -50,60 +51,73 @@ def upload_file():
         file.save(zip_path)
 
         # Extract files from the zip and store them in the user's folder
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            index_found = False
-            for member in zip_ref.namelist():
-                # Check if it's a directory, skip it
-                if member.endswith('/'):
-                    continue
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                index_found = False
+                for member in zip_ref.namelist():
+                    # Skip directories in the zip file
+                    if member.endswith('/'):
+                        continue
 
-                # Look for index.html (if you are hosting a website)
-                if os.path.basename(member).lower() == "index.html":
-                    index_found = True
+                    # Check if it's index.html (used for hosting)
+                    if os.path.basename(member).lower() == "index.html":
+                        index_found = True
 
-                # Extract the file to the user folder
-                source = zip_ref.open(member)
-                target_path = os.path.join(username_folder, os.path.basename(member))
+                    # Extract the file to the user folder
+                    source = zip_ref.open(member)
+                    target_path = os.path.join(username_folder, os.path.basename(member))
 
-                if not os.path.exists(target_path):
-                    with open(target_path, "wb") as target:
-                        target.write(source.read())
+                    if not os.path.exists(target_path):
+                        with open(target_path, "wb") as target:
+                            target.write(source.read())
 
-        # Remove the uploaded zip file
+        except zipfile.BadZipFile:
+            return 'Error: Invalid zip file'
+
+        # Remove the uploaded zip file after extraction
         os.remove(zip_path)
 
-        # If MongoDB is used, store information about the file
+        # If MongoDB is used, store file information
         if USE_MONGO:
-            client = pymongo.MongoClient(MONGO_URI, tlsCAFile=certifi.where())
-            db = client['file_db']  # Database name
-            collection = db['files']  # Collection name
-            file_info = {
-                "username": username,
-                "filename": file.filename,
-                "path": zip_path
-            }
-            collection.insert_one(file_info)
+            try:
+                client = pymongo.MongoClient(MONGO_URI, tlsCAFile=certifi.where())
+                db = client['file_db']  # Database name
+                collection = db['files']  # Collection name
+                file_info = {
+                    "username": username,
+                    "filename": file.filename,
+                    "path": zip_path
+                }
+                collection.insert_one(file_info)
+            except pymongo.errors.PyMongoError as e:
+                return f"Error saving file info to MongoDB: {e}"
 
+        # Ensure index.html is present
         if not index_found:
             return "Error: index.html not found in zip!"
 
+        # Redirect to the user's site
         return redirect(url_for('user_site', username=username))
 
 @app.route('/<username>/')
 def user_site(username):
+    # Serve the index.html file from the user's folder
     user_path = os.path.join(app.config['UPLOAD_FOLDER'], username)
     return send_from_directory(user_path, 'index.html')
 
 @app.route('/<username>/<path:filename>')
 def serve_user_files(username, filename):
+    # Serve other files from the user's folder
     user_path = os.path.join(app.config['UPLOAD_FOLDER'], username)
     return send_from_directory(user_path, filename)
 
 if __name__ == '__main__':
-    # Ensure the upload folder is created if it doesn't exist
+    # Ensure the upload folder exists
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     
     # Get the port from environment variables (for Render)
     port = int(os.environ.get("PORT", 5000))
+    
+    # Run the Flask app
     app.run(host='0.0.0.0', port=port, debug=True)
 
