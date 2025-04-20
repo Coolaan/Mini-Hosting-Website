@@ -11,7 +11,7 @@ UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # MongoDB Atlas connection
-MONGO_URI = "ymongodb+srv://aanshirawal:vQ1t13X4MHwOChWd@coolaan.kha1pcw.mongodb.net/" 
+MONGO_URI = "mongodb+srv://aanshirawal:vQ1t13X4MHwOChWd@coolaan.kha1pcw.mongodb.net/" 
 client = MongoClient(MONGO_URI)
 db = client["UserUploads"]
 collection = db["UploadLogs"]
