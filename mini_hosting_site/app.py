@@ -20,23 +20,21 @@ MONGO_URI = ""
 def index():
     return render_template('index.html')
 
-@app.route('/set_mongo', methods=['POST'])
-def set_mongo():
+@app.route('/upload', methods=['POST'])
+def upload_file():
     global USE_MONGO
     global MONGO_URI
     
-    # Check the form value for MongoDB usage
-    if request.form.get('use_mongo') == 'true':
+    username = request.form['username']
+    use_mongo = request.form.get('use_mongo')  # Check if MongoDB is selected
+    
+    # Set USE_MONGO flag based on the form submission
+    if use_mongo == 'true':
         USE_MONGO = True
         MONGO_URI = os.environ.get("MONGO_URI")  # Get the Mongo URI from environment variable
     else:
         USE_MONGO = False
     
-    return redirect(url_for('index'))  # Redirect back to the index page after setting MongoDB option
-
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    username = request.form['username']
     if 'file' not in request.files:
         return 'No file part'
     
